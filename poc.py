@@ -17,7 +17,7 @@ def parse_args():
 
 def inject(user_args):
     target_process = process([user_args.binary])
-    gdb.attach(target_process.pid)
+    gdb.attach(target_process.pid, """source /home/ninpwn/tools/debuggers/pwndbg/gdbinit.py""")
     syscall_info = parse_proc_syscall(pid=target_process.pid)
     log.info(f"current rsp: {hex(syscall_info.rsp)}")
     maps = parse_maps(pid=target_process.pid)
