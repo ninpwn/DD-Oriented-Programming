@@ -1,10 +1,31 @@
+from ctypes import *
+
 from pwn import *
+import os
 
 PAGE_SIZE = 4096
 
+# memory related and relevant procfs virtual files
 PROC_MAPS = "/proc/{}/maps"
 PROC_MEM = "/proc/{}/mem"
 PROC_SYSCALL = "/proc/{}/syscall"
+
+# gadgets
+
+nop = b"\x90\xc3"  # nop; ret;
+jmp_rax = b"\xff\xe0"  # jmp rax;
+pop_rsi = b"\x5e\xc3"  # pop rsi; ret;
+pop_rdi = b"\x5f\xc3"  # pop rdi; ret;
+mov_rax_rsi = b"\x48\x89\xf0\xc3"  # mov rax, rsi; ret;
+
+GADGET_LIST = {
+    "nop": nop,
+    "jmp_rax": jmp_rax,
+    "pop_rsi": pop_rsi,
+    "pop_rdi": pop_rdi,
+    "mov_rax_rsi": mov_rax_rsi
+}
+
 
 def read_memory(pid: int, address: int, num_bytes: int):
     """
@@ -29,6 +50,7 @@ def write_memory(pid: int, address: int, content: bytes):
         mem_file.seek(address)
         mem_file.write(content)
 
+
 def parse_maps_entry(mapped_entry: str) -> dict:
     """
     :param mapped_entry: a line parsed from /proc/pid/maps that includes a mapped memory entry
@@ -42,6 +64,7 @@ def parse_maps_entry(mapped_entry: str) -> dict:
     parsed['end'] = addresses[1]
     parsed['perms'] = split_entry[1]
     return parsed
+
 
 def parse_maps(pid: int) -> dict:
     """
@@ -90,6 +113,29 @@ def find_gadget(pid: int, maps_entry: dict, gadget: bytes) -> int:
     log.info(f"found gadget: {gadget} at {hex(result)}")
     return result
 
+
+def locate_dlopen(pid: int, libc_base: int) -> int:
+    """
+    :param libc_base: base address of libc in the target process
+    :param pid: id of the target process
+    :return: the final address of dlopen in the target process
+    """
+    libc = CDLL('libc.so.6')
+    dlopen = libc.dlopen
+    address = cast(addressof(dlopen), POINTER(c_ulonglong)).contents.value
+    maps = parse_maps(pid)
+    base = None
+    for entry in maps['bin']:
+        if 'libc.so.6' in entry["name"]:
+            base = entry["start"]
+            break
+    if base is None:
+        raise Exception("could not find libc base address in target process")
+    offset = address - int(base, 16)
+    final_addr = libc_base + offset
+    return final_addr
+
+
 def dl_open_rop(pid: int, address, so_path):
     """
     :param pid:
@@ -97,7 +143,6 @@ def dl_open_rop(pid: int, address, so_path):
     :param so_path:
     :return:
     """
-
 
 
 class SyscallInfo:
