@@ -35,12 +35,12 @@ def parse_maps_entry(mapped_entry: str) -> dict:
     :return: a parsed memory entry (dict)
     """
     parsed = {}
-    mapped_entry = line.split(" ")
-    parsed['name'] = mapped_entry[-1]
-    addresses = mapped_entry[0].split("-")
+    split_entry = mapped_entry.split(" ")
+    parsed['name'] = split_entry[-1]
+    addresses = split_entry[0].split("-")
     parsed['start'] = addresses[0]
     parsed['end'] = addresses[1]
-    parsed['perms'] = mapped_entry[1]
+    parsed['perms'] = split_entry[1]
     return parsed
 
 def parse_maps(pid: int) -> dict:
