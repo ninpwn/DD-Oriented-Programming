@@ -2,88 +2,87 @@ from pwn import *
 
 PAGE_SIZE = 4096
 
+PROC_MAPS = "/proc/{}/maps"
+PROC_MEM = "/proc/{}/mem"
+PROC_SYSCALL = "/proc/{}/syscall"
 
-def print_matching_ranges_hex(ranges):
-    for start, size, symbol in ranges:
-        print(f"\tstart: {start:#010x}, size: {size:#010x}, symbol: {symbol}")
-
-
-def parse_proc_maps(pid, query_string: str = 'r--p') -> list:
-    maps_file_path = f'/proc/{pid}/maps'
-
-    try:
-        with open(maps_file_path, 'r') as file:
-            lines = file.readlines()
-
-        matching_ranges = []
-
-        for line in lines:
-            parts = line.split()
-            address_range = parts[0]
-            permissions = parts[1]
-            pathname = parts[-1] if len(parts) >= 6 else ''
-
-            if query_string in permissions:
-                address_hex_start = int(f'0x{address_range.split("-")[0]}', 16)
-                address_hex_end = int(f'0x{address_range.split("-")[1]}', 16)
-                mapped_size = address_hex_end - address_hex_start
-                matching_ranges.append((address_hex_start, mapped_size, pathname))
-        return matching_ranges
-
-    except FileNotFoundError:
-        log.error(f"Process with PID {pid} does not exist or maps file not found.")
-        return []
-    except PermissionError:
-        log.error(f"Permission denied to access the maps file for PID {pid}.")
-        return []
-
-
-def find_cave(pid, shellcode_length: int) -> int:
-    writeable_executable_mappings = parse_proc_maps(pid, 'w')
-
-    for map_start, map_size, _ in writeable_executable_mappings:
-        if map_size < shellcode_length:
-            continue
-
-        with open(f'/proc/{pid}/mem', 'rb') as mem:
-            for offset in range(0, map_size - shellcode_length + 1):
-                mem.seek(map_start + offset)
-                data = mem.read(shellcode_length)
-                if b'\x00' * shellcode_length in data:
-                    aligned_offset = ((map_start + offset) // PAGE_SIZE) * PAGE_SIZE
-                    if aligned_offset + shellcode_length > map_start + map_size:
-                        continue
-                    return aligned_offset
-
-    return -1
-
-
-def read_memory(pid, address: int, num_bytes: int):
-    with open(f'/proc/{pid}/mem', 'rb') as mem_file:
+def read_memory(pid: int, address: int, num_bytes: int):
+    """
+    :param pid: id of the target process
+    :param address: virtual address to read from
+    :param num_bytes: amount of bytes to read from
+    :return: read bytes
+    """
+    with open(PROC_MEM.format(pid), 'rb') as mem_file:
         mem_file.seek(address)
         return mem_file.read(num_bytes)
 
 
-def write_memory(pid, address: int, content: bytes):
-    with open(f'/proc/{pid}/mem', 'wb') as mem_file:
+def write_memory(pid: int, address: int, content: bytes):
+    """
+    :param pid: id of the target process
+    :param address: virtual address to write to
+    :param content: what to write
+    :return: void
+    """
+    with open(PROC_MEM.format(pid), 'wb') as mem_file:
         mem_file.seek(address)
         mem_file.write(content)
 
+def parse_maps_entry(mapped_entry: str) -> dict:
+    """
+    :param mapped_entry: a line parsed from /proc/pid/maps that includes a mapped memory entry
+    :return: a parsed memory entry (dict)
+    """
+    parsed = {}
+    split_entry = line.split(" ")
+    parsed['name'] = split_entry[-1]
+    addresses = split_entry[0].split("-")
+    parsed['start'] = addresses[0]
+    parsed['end'] = addresses[1]
+    parsed['perms'] = split_entry[1]
+    return parsed
 
-def getsize(mem):
-    start = "0x" + mem["start"]
-    end = "0x" + mem["end"]
-    size = int(end, 16) - int(start, 16)
-    return size
+def parse_maps(pid: int) -> dict:
+    """
+    :param pid: id of the target process
+    :return: parsed dict of the relevant (stack / exec) mapped memory entries
+    """
+    final = {}
+    binaries = []
+    with open(PROC_MAPS.format(pid), "r") as file:
+        maps_data = file.read().split("\n")[:-1]
+    for entry in maps_data:
+        if "[stack]" in entry:
+            final["stack"] = parse_maps_entry(entry)
+        elif "r-xp" in entry:
+            binaries.append(parse_maps_entry(entry))
+    final["bin"] = binaries
+    return final
 
 
-def find_gadget(gadget, mem, pid):
-    size = getsize(mem)
-    start = int("0x" + mem["start"], 16)
-    with open('/proc/' + pid + '/mem', "rb") as file:
-        file.seek(start)
-        data = file.read(size)
-    offset = data.find(gadget)
+def get_entry_size(maps_entry: dict):
+    """
+    :param maps_entry: dict
+    :return: the size of the mapped memory
+    """
+    map_start = "0x" + maps_entry["start"]
+    map_end = "0x" + maps_entry["end"]
+    map_size = int(map_end, 16) - int(map_start, 16)
+    return map_size
+
+
+def find_gadget(pid: int, maps_entry: dict, gadget: bytes):
+    """
+    :param pid: id of the target process
+    :param maps_entry: dict representing a parsed memory mapping
+    :param gadget: signature (assembled instructions) of the gadget
+    :return: the desired gadget's address in mapped executable memory
+    """
+    map_size = get_entry_size(maps_entry)
+    start = int("0x" + maps_entry["start"], 16)
+    mapped_memory = read_memory(pid, start, map_size)
+    offset = mapped_memory.find(gadget)
     if offset != -1:
         result = offset + start
     else:
@@ -91,57 +90,14 @@ def find_gadget(gadget, mem, pid):
     log.info(f"found gadget: {gadget} at {hex(result)}")
     return result
 
-def parse_maps_entries(line):
-    parsed = {}
-    info = line.split(" ")
-    parsed['name'] = info[-1]
-    addresses = info[0].split("-")
-    parsed['start'] = addresses[0]
-    parsed['end'] = addresses[1]
-    parsed['perms'] = info[1]
-    return parsed
-
-def parse_maps(pid):
-    final = {}
-    binaries = []
-    with open('/proc/' + pid + '/maps', "r") as file:
-        data = file.read().split("\n")[:-1]
-    for x in data:
-        if "[stack]" in x:
-            final["stack"] = parse_maps_entries(x)
-        elif "r-xp" in x:
-            binaries.append(parse_maps_entries(x))
-        else:
-            continue
-    final["bin"] = binaries
-    return final
-
 def dl_open_rop(pid, address, so_path):
+    """
+    :param pid:
+    :param address:
+    :param so_path:
+    :return:
+    """
 
-
-def stack_pivot_rop(target_binary, bss_addr, libc):
-    rop = ROP(target_binary)
-
-    try:
-        pop_rsp_ret = rop.find_gadget(['pop rsp', 'ret'])[0]
-    except Exception:
-        rop = ROP(libc)
-        pop_rsp_ret = rop.find_gadget(['pop rsp', 'ret'])[0]
-
-    rop.raw(pop_rsp_ret)
-    rop.raw(bss_addr)
-
-    rop_chain = rop.chain()
-    log.info('stack pivot ROP chain (addresses):')
-    for i in range(0, len(rop_chain) - 7, 8):  # Adjusted loop to avoid unpacking incomplete chunks
-        chunk = rop_chain[i:i + 8]
-        if len(chunk) == 8:  # Ensure the chunk is exactly 8 bytes
-            addr = struct.unpack("<Q", chunk)[0]  # Little-endian format
-            print(f'\t0x{addr:016x}')
-        else:
-            log.warning(f'Incomplete chunk at the end of the ROP chain: {chunk.hex()}')
-
-    return rop_chain
 
 
 class SyscallInfo:
