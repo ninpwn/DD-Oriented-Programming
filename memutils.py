@@ -35,12 +35,12 @@ def parse_maps_entry(mapped_entry: str) -> dict:
     :return: a parsed memory entry (dict)
     """
     parsed = {}
-    split_entry = line.split(" ")
-    parsed['name'] = split_entry[-1]
-    addresses = split_entry[0].split("-")
+    mapped_entry = line.split(" ")
+    parsed['name'] = mapped_entry[-1]
+    addresses = mapped_entry[0].split("-")
     parsed['start'] = addresses[0]
     parsed['end'] = addresses[1]
-    parsed['perms'] = split_entry[1]
+    parsed['perms'] = mapped_entry[1]
     return parsed
 
 def parse_maps(pid: int) -> dict:
@@ -61,7 +61,7 @@ def parse_maps(pid: int) -> dict:
     return final
 
 
-def get_entry_size(maps_entry: dict):
+def get_entry_size(maps_entry: dict) -> int:
     """
     :param maps_entry: dict
     :return: the size of the mapped memory
@@ -72,7 +72,7 @@ def get_entry_size(maps_entry: dict):
     return map_size
 
 
-def find_gadget(pid: int, maps_entry: dict, gadget: bytes):
+def find_gadget(pid: int, maps_entry: dict, gadget: bytes) -> int:
     """
     :param pid: id of the target process
     :param maps_entry: dict representing a parsed memory mapping
@@ -90,7 +90,7 @@ def find_gadget(pid: int, maps_entry: dict, gadget: bytes):
     log.info(f"found gadget: {gadget} at {hex(result)}")
     return result
 
-def dl_open_rop(pid, address, so_path):
+def dl_open_rop(pid: int, address, so_path):
     """
     :param pid:
     :param address:
