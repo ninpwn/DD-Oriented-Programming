@@ -73,7 +73,8 @@ def parse_maps(pid: int) -> dict:
     """
     final = {}
     binaries = []
-    maps = []
+    base_addrs = []
+    bss_addrs = []
     with open(PROC_MAPS.format(pid), "r") as file:
         maps_data = file.read().split("\n")[:-1]
     for entry in maps_data:
@@ -82,9 +83,12 @@ def parse_maps(pid: int) -> dict:
         elif "r-xp" in entry:
             binaries.append(parse_maps_entry(entry))
         elif "r--p" in entry:
-            maps.append(parse_maps_entry(entry))
+            base_addrs.append(parse_maps_entry(entry))
+        elif "rw-p":
+            (bss_addrs.append(parse_maps_entry(entry)))
     final["bin"] = binaries
-    final["maps"] = maps
+    final["base_addr"] = base_addrs
+    final["bss_addr"] = bss_addrs
     return final
 
 
@@ -166,7 +170,7 @@ def dl_open_rop(pid: int, address: int, so_path: str, maps: dict):
                 continue
 
     # Find dlopen in libc
-    for map in maps["maps"]:
+    for base_addr in maps["base_addrs"]:
         if 'libc.so.6' in map["name"]:
             libc_base = int(map["start"], 16)  # Convert libc base address to integer
             dlopen_addr = locate_dlopen(pid=pid, libc_base=libc_base)  # Pass integer libc_base
