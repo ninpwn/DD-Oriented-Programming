@@ -19,7 +19,7 @@ class ProcessInjector:
 
     def start_target_process(self):
         """
-        Start the target process and attach GDB for debugging.
+        Initialize the ExploitUtils object with the targeted pid.
         """
         self.exploit_utils = ExploitUtils(self.target_pid)
 
