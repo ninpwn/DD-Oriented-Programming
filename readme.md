@@ -120,5 +120,5 @@ This is a conceptual TODO as I don't intended on maintaining this project:
 - Receive the malicious SO over a socket (to avoid writing it to the disk).
 - Use a more accurate stack pointer to override the stack return address more precisely.
 # Epilogue 
-I hope you enjoyed this read, let me know what could be improved, for the record, I'm NOT responsible for the usage in this technique in unauthorized manners.
+I hope you enjoyed this read, let me know what could be improved, for the record, I'm NOT responsible for the usage of this technique in unauthorized manners.
 Feel free to read the source code, I tried my best to make it as readable as I can write it.
