@@ -111,7 +111,7 @@ void init_library() {
 # The PoC's PoC
 https://github.com/user-attachments/assets/b179f8a8-7e86-417e-a9db-0fa3bad2bbe0
 # TODO
-This is a conceptual TODO as I don't intended on maintaining this project:
+This is a conceptual TODO as I don't intend on maintaining this project:
 - Restoring the BSS cave with null bytes.
 - Restoring the process's execution state via the SO's logic.
 - Adding support for multiple architectures.
