@@ -32,7 +32,7 @@ class ProcessInjector:
         log.info(f"Current RSP: {hex(syscall_info.rsp)}")
 
         # Find a memory cave for storing the SO path
-        bss_cave = self.exploit_utils.find_cave(cave_size=0x100)
+        bss_cave = self.exploit_utils.find_cave(cave_size=len(self.so_path))
 
         # Create a ROP chain for calling dlopen with the shared object path
         dlopen_rop_chain = self.exploit_utils.dlopen_rop(address=bss_cave, so_path=self.so_path)
