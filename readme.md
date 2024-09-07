@@ -72,8 +72,8 @@ Now that we know all of the essential ``procfs`` entries, we need to compile the
 I went for a memory corruption exploit that could be used on modern ELF binaries, meaning it's able to bypass common modern binary exploitation mitigations:
 * NX enabled (no executable stack)
 * Full RELRO (GOT & PLT protection)
-* ASLR (Address Space Layout Randomization, prevents the usage of hardcoded addresses) 
-To name a few.. Eventually, I went for a ROP chain that's executed by corrupting the stack after enumerating gadgets in mapped executable virtual memory and finding the current value of the ``RSP`` register in the target process.
+* ASLR (Address Space Layout Randomization, prevents the usage of hardcoded addresses)
+Eventually, I went for a ROP chain that's executed by corrupting the stack after enumerating gadgets in mapped executable virtual memory and finding the current value of the ``RSP`` register in the target process.
 We're aiming to execute ``dlopen`` as an easy way to execute complex logic via the malicious so instead of a fragile ROP chain.
 ## Exploitation Overview
 1. Parsing the ``/proc/<pid>/syscall`` maps into registers.
