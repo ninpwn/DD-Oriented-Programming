@@ -39,7 +39,7 @@ When browsing the specific entries that the ``procfs`` has to offer I had two ma
 2. Reading and writing to/from a process's memory
 
 The latter goal is fairly easy to achieve and its relevant ``procfs`` entry is commonly known as  ``/proc/<pid>/mem``, which as its name suggests, it's an interface to a process's memory that depending on the system's configuration allows reading and or writing to the process's memory.
-The first goal however is a bit more trickier to achieve, more specifically determining the process's current state because for determining the process's mapped virtual memory, we have an entry that is used often in a process's debugging process which is ``/proc/<pid>/maps``.
+The first goal however is a bit more trickier to achieve, more specifically determining the process's current state because for determining the process's mapped virtual memory, we have an entry that is used often during process debugging which is ``/proc/<pid>/maps``.
 ```sh
 # Example /proc/<pid>/maps contents of a /bin/sh process:
 mapped range			  perms                                          symbol
