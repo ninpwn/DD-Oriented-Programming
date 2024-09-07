@@ -5,7 +5,7 @@ This PoC was done on an Ubuntu 22.04 x64 system.
 - It's cool and I love pwn.
 - Could allow bypassing some process specific anti-debugging concepts.
 # Requirements & Components
-As per mentioned at the prologue, this PoC relies on ``procfs`` entries that include data that indicates the process's current state and mappings:
+This PoC relies on ``procfs`` entries that include data that indicates the process's current state and mappings:
 ```
 /proc/<pid>/maps
 /proc/<pid>/syscall
