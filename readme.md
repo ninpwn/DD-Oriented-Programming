@@ -55,7 +55,7 @@ mapped range			  perms                                          symbol
 7fff647f4000-7fff647f6000 r-xp 00000000 00:00 0                          [vdso]
 ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]
 ```
-As can be see in the example ``/proc/pid/maps`` output, we can very comfortably define the process's memory mappings according to their size, memory permissions and associated executable/shared object path or purpose.
+As can be seen in the example ``/proc/pid/maps`` output, we can very comfortably define the process's memory mappings according to their size, memory permissions and associated executable/shared object path or purpose.
 
 But how do we determine the process's current execution state? The process's register values, current instruction being executed, etc. are critical to actually be able to control the process's flow and to restore the process's execution later on.
 During my research I discovered the virtual file: ``/proc/<pid>/syscall``, which was introduced in Linux 2.6.27 (2017) and as quoted in ``man proc`` it exposes the:
