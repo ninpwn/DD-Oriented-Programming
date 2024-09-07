@@ -1,6 +1,5 @@
 # Prologue
-I don't have a good prologue so I'll just say that I got tired of Linux process injection PoCs relying on either ``ptrace()`` or ``LD_PRELOAD`` and wanted to create a ***somewhat*** generic way to inject arbitrary code via a malicious shared object library into processes that relies on the fact that ``procfs`` memory related entries with r/w permissions allow me to quite literally pwn and own the process.
-This PoC was done on an Ubuntu 22.04 x64 system. 
+It all started when I got fed up with the typical Linux process injection PoCs that relied on either ``ptrace()`` or ``LD_PRELOAD``. I wanted something different, something a bit more intriguing—a more generic way to inject arbitrary code by using a malicious shared object library. I realized that the ``procfs`` memory-related entries with r/w permissions left an open door to quite literally pwn and own the process, so I set out to prove it. This PoC was born on an Ubuntu 22.04 x64 system, and it’s here to show just how much you can do when you get creative with ``procfs``.
 ## Motivation
 - It's cool and I love pwn.
 - Could allow bypassing some process specific anti-debugging concepts.
