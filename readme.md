@@ -119,6 +119,6 @@ This is a conceptual TODO as I don't intend on maintaining this project:
 - Explore thread based entry points for network processes like web servers.
 - Receive the malicious SO over a socket (to avoid writing it to the disk).
 - Use a more accurate stack pointer to override the stack return address more precisely.
-# Epilogue 
-I hope you enjoyed this read, let me know what could be improved, for the record, I'm NOT responsible for the usage of this technique in unauthorized manners.
-Feel free to read the source code, I tried my best to make it as readable as I can write it.
+
+# Epilogue
+I hope you enjoyed this read—I'd love to hear your thoughts on what could be improved. Just for the record, I'm not responsible for any unauthorized usage of this technique. That said, feel free to dig into the source code. I’ve put in the effort to make it as readable as possible, and I hope you find it as clear as I intended it to be.
